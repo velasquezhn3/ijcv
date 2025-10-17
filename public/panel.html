@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Panel Administrativo - Gestión de Usuarios y Alumnos</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    h1 { text-align: center; }
+    .tabs { display: flex; margin-bottom: 10px; cursor: pointer; }
+    .tab { padding: 10px 20px; border: 1px solid #ccc; border-bottom: none; background: #eee; }
+    .tab.active { background: white; font-weight: bold; }
+    .content { border: 1px solid #ccc; padding: 10px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+    th { background: #f0f0f0; }
+    input, select { margin-right: 10px; padding: 5px; }
+    .pagination { margin-top: 10px; }
+    .pagination button { padding: 5px 10px; margin-right: 5px; }
+    #historyModal { display: none; position: fixed; top: 10%; left: 50%; transform: translateX(-50%); background: white; border: 1px solid #ccc; padding: 20px; max-width: 600px; max-height: 70vh; overflow-y: auto; box-shadow: 0 0 10px rgba(0,0,0,0.3); }
+    #historyModal h2 { margin-top: 0; }
+    #historyModal button.close { float: right; }
+    #historyList { max-height: 60vh; overflow-y: auto; }
+    #historyList div { border-bottom: 1px solid #ddd; padding: 5px 0; }
+  </style>
+</head>
+<body>
+  <h1>Panel Administrativo</h1>
+  <button id="btnBackToIndex" style="margin-bottom: 1rem;">Volver al Inicio</button>
+  <div class="tabs">
+    <div class="tab active" data-tab="users">Encargados</div>
+    <div class="tab" data-tab="students">Alumnos</div>
+    <div class="tab" data-tab="financialSummary">Resumen Financiero</div>
+  </div>
+  <div class="content" id="usersContent">
+    <div>
+      <input type="text" id="userNameFilter" placeholder="Filtrar por nombre" />
+      <input type="text" id="userIdFilter" placeholder="Filtrar por ID" />
+      <select id="userActiveFilter">
+        <option value="">Estado (todos)</option>
+        <option value="true">Activo</option>
+        <option value="false">Inactivo</option>
+      </select>
+      <button id="userFilterBtn">Filtrar</button>
+    </div>
+    <table id="usersTable">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Nombre</th>
+          <th>Activo</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <div class="pagination" id="usersPagination"></div>
+  </div>
+  <div class="content" id="studentsContent" style="display:none;">
+    <div>
+      <input type="text" id="studentNameFilter" placeholder="Filtrar por nombre" />
+      <input type="text" id="studentIdFilter" placeholder="Filtrar por ID" />
+      <select id="studentPaymentFilter">
+        <option value="">Estado de pago (todos)</option>
+        <option value="pagado">Pagado</option>
+        <option value="deudor">Deudor</option>
+      </select>
+      <button id="studentFilterBtn">Filtrar</button>
+      <button id="studentPrintBtn">Imprimir</button>
+    </div>
+    <table id="studentsTable">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Nombre</th>
+          <th>Grado</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <div class="pagination" id="studentsPagination"></div>
+  </div>
+  <div class="content" id="financialSummaryContent" style="display:none; padding: 10px;">
+    <ul id="financialOptions" style="list-style: none; padding: 0;">
+      <li><button class="financial-option" data-option="resumenFinancieroGeneral">Resumen Financiero General</button></li>
+      <li><button class="financial-option" data-option="comparativoMensualIngresos">Comparativo Mensual de Ingresos</button></li>
+      <li><button class="financial-option" data-option="estadoPagos">Estado de Pagos (Pagado vs. Pendiente)</button></li>
+      <li><button class="financial-option" data-option="distribucionIngresosPorFuente">Distribución de Ingresos por Fuente</button></li>
+    </ul>
+    <div id="financialReport" style="margin-top: 20px; white-space: pre-wrap; background: #f9f9f9; padding: 10px; border: 1px solid #ccc;"></div>
+  </div>
+
+  <div id="historyModal">
+    <button class="close" onclick="closeHistoryModal()">Cerrar</button>
+    <h2>Historial de acciones</h2>
+    <div id="historyList"></div>
+  </div>
+
+  <section id="financial-summary-section" style="margin: 20px; padding: 20px; border: 1px solid #ccc;">
+    <h2>Resumen Financiero Objetivo</h2>
+
+    <h3>1. Resumen Financiero General</h3>
+    <pre id="resumen-financiero-json" style="background: #f9f9f9; padding: 10px;"></pre>
+
+    <h3>2. Comparativo Mensual de Ingresos</h3>
+    <pre id="comparativo-mensual-json" style="background: #f9f9f9; padding: 10px;"></pre>
+
+    <h3>3. Estado de Pagos (Pagado vs. Pendiente)</h3>
+    <pre id="estado-pagos-json" style="background: #f9f9f9; padding: 10px;"></pre>
+
+    <h3>4. Distribución de Ingresos por Fuente</h3>
+    <pre id="distribucion-ingresos-json" style="background: #f9f9f9; padding: 10px;"></pre>
+  </section>
+
+  <script>
+    document.getElementById('btnBackToIndex').addEventListener('click', () => {
+      // Navigate to root URL instead of loading index.html content
+      window.location.href = '/';
+    });
+
+    const tabs = document.querySelectorAll('.tab');
+    const usersContent = document.getElementById('usersContent');
+    const studentsContent = document.getElementById('studentsContent');
+
+    tabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        tabs.forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        if (tab.dataset.tab === 'users') {
+          usersContent.style.display = '';
+          studentsContent.style.display = 'none';
+          financialSummaryContent.style.display = 'none';
+        } else if (tab.dataset.tab === 'students') {
+          usersContent.style.display = 'none';
+          studentsContent.style.display = '';
+          financialSummaryContent.style.display = 'none';
+        } else if (tab.dataset.tab === 'financialSummary') {
+          usersContent.style.display = 'none';
+          studentsContent.style.display = 'none';
+          financialSummaryContent.style.display = '';
+        }
+      });
+    });
+
+    // Pagination and data state
+    let usersData = [];
+    let usersPage = 1;
+    const usersPerPage = 10;
+
+    let studentsData = [];
+    let studentsPage = 1;
+    const studentsPerPage = 10;
+
+    // Fetch and render users
+    async function fetchUsers(filters = {}) {
+      const params = new URLSearchParams(filters);
+      const res = await fetch('/admin/users?' + params.toString());
+      const data = await res.json();
+      usersData = data;
+      usersPage = 1;
+      renderUsers();
+    }
+
+    function renderUsers() {
+      const tbody = document.querySelector('#usersTable tbody');
+      tbody.innerHTML = '';
+      const start = (usersPage - 1) * usersPerPage;
+      const end = start + usersPerPage;
+      const pageData = usersData.slice(start, end);
+      pageData.forEach(user => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = '<td>' + user.id + '</td>' +
+                       '<td>' + user.nombre + '</td>' +
+                       '<td>' + (user.activo ? 'Sí' : 'No') + '</td>' +
+                       '<td><button onclick="showHistory(\'' + user.id + '\')">Ver historial</button></td>';
+        tbody.appendChild(tr);
+      });
+      renderUsersPagination();
+    }
+
+    function renderUsersPagination() {
+      const pagination = document.getElementById('usersPagination');
+      pagination.innerHTML = '';
+      const totalPages = Math.ceil(usersData.length / usersPerPage);
+      for (let i = 1; i <= totalPages; i++) {
+        const btn = document.createElement('button');
+        btn.textContent = i;
+        if (i === usersPage) btn.disabled = true;
+        btn.addEventListener('click', () => {
+          usersPage = i;
+          renderUsers();
+        });
+        pagination.appendChild(btn);
+      }
+    }
+
+    // Fetch and render students
+    async function fetchStudents(filters = {}) {
+      const params = new URLSearchParams(filters);
+      const res = await fetch('/admin/students?' + params.toString());
+      const data = await res.json();
+      studentsData = data;
+      studentsPage = 1;
+      renderStudents();
+    }
+
+    function renderStudents() {
+      const tbody = document.querySelector('#studentsTable tbody');
+      tbody.innerHTML = '';
+      const start = (studentsPage - 1) * studentsPerPage;
+      const end = start + studentsPerPage;
+      const pageData = studentsData.slice(start, end);
+      pageData.forEach(student => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = '<td>' + student.id + '</td>' +
+                       '<td>' + student.nombre + '</td>' +
+                       '<td>' + student.grado + '</td>' +
+                       '<td>' +
+                         '<button onclick="showHistory(\'' + student.id + '\')">Ver historial</button> ' +
+                         '<button onclick="showDebtModal(\'' + student.id + '\')">Ver saldos</button>' +
+                       '</td>';
+        tbody.appendChild(tr);
+      });
+      renderStudentsPagination();
+    }
+
+    function renderStudentsPagination() {
+      const pagination = document.getElementById('studentsPagination');
+      pagination.innerHTML = '';
+      const totalPages = Math.ceil(studentsData.length / studentsPerPage);
+      for (let i = 1; i <= totalPages; i++) {
+        const btn = document.createElement('button');
+        btn.textContent = i;
+        if (i === studentsPage) btn.disabled = true;
+        btn.addEventListener('click', () => {
+          studentsPage = i;
+          renderStudents();
+        });
+        pagination.appendChild(btn);
+      }
+    }
+
+    // Filter buttons
+    document.getElementById('userFilterBtn').addEventListener('click', () => {
+      const nombre = document.getElementById('userNameFilter').value.trim();
+      const id = document.getElementById('userIdFilter').value.trim();
+      const activo = document.getElementById('userActiveFilter').value;
+      fetchUsers({ nombre, id, activo });
+    });
+
+    document.getElementById('studentFilterBtn').addEventListener('click', () => {
+      const nombre = document.getElementById('studentNameFilter').value.trim();
+      const id = document.getElementById('studentIdFilter').value.trim();
+      const estadoPago = document.getElementById('studentPaymentFilter').value;
+      fetchStudents({ nombre, id, estadoPago });
+    });
+
+    document.getElementById('studentPrintBtn').addEventListener('click', () => {
+      printStudentList();
+    });
+
+    function printStudentList() {
+      const estadoPago = document.getElementById('studentPaymentFilter').value;
+      const studentsTable = document.getElementById('studentsTable');
+      const studentsPerPage = 10;
+
+      // Use the global studentsPage variable for current page number
+      const currentPage = studentsPage;
+
+      // Clone the table to print only the current page rows
+      const cloneTable = studentsTable.cloneNode(true);
+      const tbody = cloneTable.querySelector('tbody');
+      const rows = Array.from(tbody.querySelectorAll('tr'));
+
+      // Remove all rows first
+      tbody.innerHTML = '';
+
+      // Calculate start and end index for current page
+      const start = (currentPage - 1) * studentsPerPage;
+      const end = start + studentsPerPage;
+
+      // Append only rows for current page
+      rows.slice(start, end).forEach(row => {
+        tbody.appendChild(row.cloneNode(true));
+      });
+
+      // Create a new window for printing
+      const printWindow = window.open('', '', 'width=900,height=600');
+      printWindow.document.write('<html><head><title>Imprimir lista de estudiantes</title>');
+      printWindow.document.write('<style>table { width: 100%; border-collapse: collapse; } th, td { border: 1px solid #ccc; padding: 8px; text-align: left; } th { background: #f0f0f0; }</style>');
+      printWindow.document.write('</head><body>');
+      printWindow.document.write('<h1>Lista de estudiantes - ' + (estadoPago ? estadoPago.charAt(0).toUpperCase() + estadoPago.slice(1) : 'Todos') + '</h1>');
+      printWindow.document.write(cloneTable.outerHTML);
+      printWindow.document.write('</body></html>');
+      printWindow.document.close();
+      printWindow.focus();
+      printWindow.print();
+      printWindow.close();
+    }
+
+    // History modal
+    const historyModal = document.getElementById('historyModal');
+    const historyList = document.getElementById('historyList');
+
+    async function showHistory(id) {
+      historyList.innerHTML = 'Cargando...';
+      historyModal.style.display = 'block';
+      try {
+        const res = await fetch('/admin/users/' + encodeURIComponent(id) + '/history');
+        const logs = await res.json();
+        if (logs.length === 0) {
+          historyList.innerHTML = '<p>No hay historial para este usuario.</p>';
+          return;
+        }
+        historyList.innerHTML = '';
+        logs.forEach(log => {
+          const div = document.createElement('div');
+          div.textContent = new Date(log.fecha).toLocaleString() + ' - [' + log.tipo + '] - ' + log.detalle;
+          historyList.appendChild(div);
+        });
+      } catch (error) {
+        historyList.innerHTML = '<p>Error al cargar el historial.</p>';
+      }
+    }
+
+    function closeHistoryModal() {
+      historyModal.style.display = 'none';
+      historyList.innerHTML = '';
+    }
+
+  // Initial fetch
+  fetchUsers();
+  fetchStudents();
+
+  // Financial summary data cache
+  let financialSummaryData = null;
+
+    // Fetch financial summary data from backend
+    async function fetchFinancialSummary() {
+      if (financialSummaryData) {
+        console.log('Using cached financial summary data');
+        return financialSummaryData;
+      }
+      try {
+        console.log('Fetching financial summary data from backend...');
+        const res = await fetch('/admin/stats/financial-summary');
+        if (!res.ok) {
+          throw new Error('Error fetching financial summary: ' + res.status);
+        }
+        financialSummaryData = await res.json();
+        console.log('Financial summary data received:', financialSummaryData);
+        return financialSummaryData;
+      } catch (error) {
+        console.error('Error fetching financial summary:', error);
+        return null;
+      }
+    }
+
+    // Render financial report based on selected option
+    async function renderFinancialReport(option) {
+      console.log('Rendering financial report for option:', option);
+      const data = await fetchFinancialSummary();
+      const reportDiv = document.getElementById('financialReport');
+      if (!data) {
+        reportDiv.textContent = 'Error al cargar el resumen financiero.';
+        return;
+      }
+      let content = '';
+      switch (option) {
+        case 'resumenFinancieroGeneral':
+          content = JSON.stringify(data.resumenGeneral, null, 2);
+          break;
+        case 'comparativoMensualIngresos':
+          content = JSON.stringify(data.seriesTemporales, null, 2);
+          break;
+        case 'estadoPagos':
+          content = JSON.stringify({
+            matriculas: data.resumenGeneral.matriculas,
+            libros: data.resumenGeneral.libros,
+            transporte: data.resumenGeneral.transporte,
+            pendiente: data.resumenGeneral.matriculas.pendiente + data.resumenGeneral.libros.pendiente + data.resumenGeneral.transporte.pendiente,
+            pagado: data.resumenGeneral.matriculas.pagado + data.resumenGeneral.libros.pagado + data.resumenGeneral.transporte.pagado
+          }, null, 2);
+          break;
+        case 'distribucionIngresosPorFuente':
+          content = JSON.stringify(data.distribucion, null, 2);
+          break;
+        default:
+          content = 'Opción no válida.';
+      }
+      reportDiv.textContent = content;
+    }
+
+  // Add event listeners to financial option buttons
+  document.querySelectorAll('.financial-option').forEach(button => {
+    button.addEventListener('click', () => {
+      renderFinancialReport(button.dataset.option);
+    });
+  });
+  </script>
+
+  <style>
+    #debtModal {
+      display: none;
+      position: fixed;
+      top: 10%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: white;
+      border: 1px solid #ccc;
+      padding: 20px;
+      max-width: 600px;
+      max-height: 70vh;
+      overflow-y: auto;
+      box-shadow: 0 0 10px rgba(0,0,0,0.3);
+      z-index: 1000;
+    }
+    #debtModal h2 {
+      margin-top: 0;
+    }
+    #debtModal button.close {
+      float: right;
+    }
+    #debtContent {
+      margin-top: 1rem;
+    }
+    #debtContent p {
+      margin: 0.5rem 0;
+    }
+  </style>
+
+  <div id="debtModal">
+    <button class="close" onclick="closeDebtModal()">Cerrar</button>
+    <h2>Deuda del Estudiante</h2>
+    <div id="debtContent">Cargando...</div>
+  </div>
+
+  <script>
+    async function showDebtModal(studentId) {
+      const modal = document.getElementById('debtModal');
+      const content = document.getElementById('debtContent');
+      content.innerHTML = 'Cargando...';
+      modal.style.display = 'block';
+
+      try {
+        const res = await fetch('/admin/students/' + encodeURIComponent(studentId) + '/debt');
+        if (!res.ok) {
+          content.innerHTML = '<p>Error al obtener la deuda del estudiante.</p>';
+          return;
+        }
+        const data = await res.json();
+        const { estudiante, deuda } = data;
+
+        let html = '';
+        html += `<p><strong>Nombre:</strong> ${estudiante.nombre}</p>`;
+        html += `<p><strong>Grado:</strong> ${estudiante.grado}</p>`;
+        html += `<p><strong>ID:</strong> ${estudiante.id}</p>`;
+        html += `<p><strong>Plan de Pago:</strong> ${estudiante.planDePago || 'N/A'}</p>`;
+        html += `<hr />`;
+        html += `<p><strong>Cuota Mensual:</strong> L. ${deuda.cuotaMensual}</p>`;
+        html += `<p><strong>Meses Pendientes:</strong> ${deuda.mesesPendientes.length > 0 ? deuda.mesesPendientes.join(', ') : 'Ninguno'}</p>`;
+        html += `<p><strong>Deuda Mensualidad:</strong> L. ${deuda.deudaMensualidad}</p>`;
+        html += `<p><strong>Deuda Mora:</strong> L. ${deuda.deudaMora}</p>`;
+        html += `<p><strong>Total Deuda:</strong> L. ${deuda.totalDeuda}</p>`;
+        html += `<p><strong>Estado:</strong> ${deuda.alDia ? 'Al día' : 'Deudor'}</p>`;
+
+        content.innerHTML = html;
+      } catch (error) {
+        content.innerHTML = '<p>Error al obtener la deuda del estudiante.</p>';
+      }
+    }
+
+    function closeDebtModal() {
+      const modal = document.getElementById('debtModal');
+      modal.style.display = 'none';
+      const content = document.getElementById('debtContent');
+      content.innerHTML = '';
+    }
+  </script>
+</body>
+</html>

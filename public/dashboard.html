@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dashboard Financiero</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; background: #f9f9f9; }
+    h1 { text-align: center; margin-bottom: 20px; }
+    .kpi-container {
+      display: flex;
+      justify-content: space-around;
+      margin-bottom: 30px;
+      flex-wrap: wrap;
+    }
+    .kpi-card {
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      padding: 20px;
+      width: 200px;
+      margin: 10px;
+      text-align: center;
+    }
+    .kpi-card h2 {
+      margin: 0;
+      font-size: 2em;
+      color: #2c3e50;
+    }
+    .kpi-card p {
+      margin: 5px 0 0;
+      color: #7f8c8d;
+    }
+    .chart-container {
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      padding: 20px;
+      margin-bottom: 30px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      margin-bottom: 30px;
+    }
+    th, td {
+      padding: 10px;
+      border-bottom: 1px solid #ddd;
+      text-align: left;
+    }
+    th {
+      background: #ecf0f1;
+    }
+    .filter-container {
+      margin-bottom: 10px;
+    }
+    .filter-container label {
+      margin-right: 10px;
+    }
+    .loading {
+      text-align: center;
+      font-style: italic;
+      margin-top: 50px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Dashboard Financiero</h1>
+  <div id="content">
+    <p class="loading">Cargando datos...</p>
+  </div>
+
+  <script>
+    async function fetchDashboardData() {
+      try {
+        const res = await fetch('/admin/dashboard/dashboard-data');
+        if (!res.ok) throw new Error('Error al obtener datos');
+        const data = await res.json();
+        return data;
+      } catch (err) {
+        console.error(err);
+        return null;
+      }
+    }
+
+    function formatCurrency(value) {
+      return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(value);
+    }
+
+    function createKpiCard(title, value, subtitle) {
+      const card = document.createElement('div');
+      card.className = 'kpi-card';
+      card.innerHTML = `<h2>${value}</h2><p>${title}</p><small>${subtitle || ''}</small>`;
+      return card;
+    }
+
+    function createTable(headers, rows) {
+      const table = document.createElement('table');
+      const thead = document.createElement('thead');
+      const trHead = document.createElement('tr');
+      headers.forEach(h => {
+        const th = document.createElement('th');
+        th.textContent = h;
+        trHead.appendChild(th);
+      });
+      thead.appendChild(trHead);
+      table.appendChild(thead);
+
+      const tbody = document.createElement('tbody');
+      rows.forEach(row => {
+        const tr = document.createElement('tr');
+        row.forEach(cell => {
+          const td = document.createElement('td');
+          td.textContent = cell;
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      return table;
+    }
+
+    function renderKpis(analysis, container) {
+      const kpiContainer = document.createElement('div');
+      kpiContainer.className = 'kpi-container';
+
+      kpiContainer.appendChild(createKpiCard('Total Alumnos', analysis.totalStudents, ''));
+      kpiContainer.appendChild(createKpiCard('Deuda Total', formatCurrency(analysis.totalDebt), ''));
+      kpiContainer.appendChild(createKpiCard('Alumnos con Deuda', analysis.studentsWithDebt, ''));
+      kpiContainer.appendChild(createKpiCard('Tasa de Morosidad', analysis.morosityRate.toFixed(2) + '%', ''));
+
+      container.appendChild(kpiContainer);
+    }
+
+    function renderBarChart(ctx, labels, data, title) {
+      return new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{
+            label: title,
+            data,
+            backgroundColor: 'rgba(54, 162, 235, 0.7)'
+          }]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            y: { beginAtZero: true }
+          }
+        }
+      });
+    }
+
+    function renderDistributionCharts(analysis, container) {
+      const sections = [
+        { key: 'level', title: 'Distribución por Nivel Educativo' },
+        { key: 'year', title: 'Distribución por Año/Ciclo' },
+        { key: 'gender', title: 'Distribución por Género' }
+      ];
+
+      sections.forEach(section => {
+        const div = document.createElement('div');
+        div.className = 'chart-container';
+        div.innerHTML = `<h3>${section.title}</h3><canvas id="chart-${section.key}"></canvas>`;
+        container.appendChild(div);
+
+        const labels = Object.keys(analysis.distribution[section.key]);
+        const data = Object.values(analysis.distribution[section.key]);
+        const ctx = document.getElementById(`chart-${section.key}`).getContext('2d');
+        renderBarChart(ctx, labels, data, section.title);
+      });
+    }
+
+    function renderTopDebtorsTable(analysis, container) {
+      const section = document.createElement('div');
+      section.className = 'section';
+      section.innerHTML = '<h3>Top 10 Alumnos con Mayor Deuda</h3>';
+
+      if (!analysis.topDebtors || analysis.topDebtors.length === 0) {
+        section.innerHTML += '<p>No hay datos disponibles.</p>';
+      } else {
+        const headers = ['Alumno', 'Nivel', 'Deuda'];
+        const rows = analysis.topDebtors.map(d => [
+          d.NOMBRE || 'Desconocido',
+          d.NIVEL || 'Desconocido',
+          formatCurrency(parseFloat(d.DEUDA) || 0)
+        ]);
+        const table = createTable(headers, rows);
+        section.appendChild(table);
+      }
+      container.appendChild(section);
+    }
+
+    function renderDaysOverdueHistogram(analysis, container) {
+      const section = document.createElement('div');
+      section.className = 'chart-container';
+      section.innerHTML = '<h3>Histograma de Días de Atraso</h3><canvas id="chart-days-overdue"></canvas>';
+      container.appendChild(section);
+
+      const labels = Object.keys(analysis.daysOverdueHistogram);
+      const data = Object.values(analysis.daysOverdueHistogram);
+      const ctx = document.getElementById('chart-days-overdue').getContext('2d');
+      renderBarChart(ctx, labels, data, 'Días de Atraso');
+    }
+
+    function renderSegmentationTable(analysis, container) {
+      const section = document.createElement('div');
+      section.className = 'section';
+      section.innerHTML = '<h3>Segmentación de Alumnos</h3>';
+
+      const headers = ['Estado', 'Cantidad'];
+      const rows = [
+        ['Al Día', analysis.segmentation.alDia],
+        ['Morosos 1-30 días', analysis.segmentation.morosos_1_30],
+        ['Morosos 31-60 días', analysis.segmentation.morosos_31_60],
+        ['Morosos +60 días', analysis.segmentation.morosos_60mas],
+        ['Con Beca', analysis.segmentation.conBeca]
+      ];
+
+      const table = createTable(headers, rows);
+      section.appendChild(table);
+      container.appendChild(section);
+    }
+
+    async function renderDashboard() {
+      const content = document.getElementById('content');
+      content.innerHTML = '';
+
+      const data = await fetchDashboardData();
+      if (!data || data.error) {
+        content.textContent = 'Error al cargar datos del dashboard.';
+        return;
+      }
+
+      renderKpis(data.analysis, content);
+      renderDistributionCharts(data.analysis, content);
+      renderTopDebtorsTable(data.analysis, content);
+      renderDaysOverdueHistogram(data.analysis, content);
+      renderSegmentationTable(data.analysis, content);
+    }
+
+    renderDashboard();
+  </script>
+</body>
+</html>

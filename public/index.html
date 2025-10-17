@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>WhatsApp Bot Login</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 2rem;
+      text-align: center;
+    }
+    #qrCode {
+      margin: 1rem auto;
+      width: 256px;
+      height: 256px;
+      border: 1px solid #ccc;
+    }
+    button {
+      background-color: #007bff;
+      color: white;
+      border: none;
+      padding: 0.75rem 1.5rem;
+      font-size: 1rem;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:disabled {
+      background-color: #999;
+      cursor: not-allowed;
+    }
+    #status {
+      margin-top: 1rem;
+      font-weight: bold;
+    }
+    #uploadSection {
+      margin-top: 2rem;
+      border-top: 1px solid #ccc;
+      padding-top: 1rem;
+    }
+    #uploadStatus {
+      margin-top: 1rem;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <div id="loginContainer" style="margin-top: 2rem; text-align: center;">
+    <h2>Login</h2>
+    <div>
+      <input type="text" id="username" placeholder="Username" style="padding: 0.5rem; font-size: 1rem; width: 200px;" />
+    </div>
+    <div style="margin-top: 1rem;">
+      <input type="password" id="password" placeholder="Password" style="padding: 0.5rem; font-size: 1rem; width: 200px;" />
+    </div>
+    <div style="margin-top: 1rem;">
+      <button id="loginBtn" style="padding: 0.5rem 1rem; font-size: 1rem;">Login</button>
+    </div>
+    <div id="loginMessage" style="margin-top: 1rem; font-weight: bold; color: red;"></div>
+  </div>
+
+  <div id="dashboardSelector" style="display: none; margin-top: 1rem; text-align: center;">
+    <button id="btnAdminPanel" style="margin-right: 1rem; padding: 0.5rem 1rem; font-size: 1rem;">Panel de Administración - Bot IJCV</button>
+    <button id="btnChiloDashboard" style="padding: 0.5rem 1rem; font-size: 1rem;">Chilo Bot Dashboard</button>
+    <button id="btnUserStudentPanel" class="button" style="margin-left: 1rem;">Gestión Usuarios y Alumnos</button>
+  </div>
+
+  <div id="adminPanelDashboard" style="display: none; margin-top: 2rem;">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+      .dashboard-counters {
+        display: flex;
+        justify-content: space-around;
+        margin-bottom: 2rem;
+        flex-wrap: wrap;
+      }
+      .counter-box {
+        background: #f5f5f5;
+        border-radius: 8px;
+        padding: 1.2rem 2rem;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.06);
+        text-align: center;
+        min-width: 160px;
+        margin: 0.5rem;
+        flex: 1 1 160px;
+      }
+      .counter-title {
+        font-size: 1rem;
+        margin-bottom: 0.2rem;
+        color: #3273dc;
+      }
+      .counter-value {
+        font-size: 2.2rem;
+        font-weight: bold;
+        color: #22223b;
+      }
+      .chart-container {
+        margin-bottom: 2rem;
+      }
+    </style>
+
+    <section class="section">
+      <div class="container">
+        <h1 class="title is-3 has-text-centered mb-5">Panel de Administración - Bot IJCV</h1>
+        
+        <!-- Dashboard de contadores -->
+        <div class="dashboard-counters">
+        <div class="counter-box">
+          <div class="counter-title">Mensajes Hoy</div>
+          <div class="counter-value" id="messagesToday">-</div>
+        </div>
+        <div class="counter-box">
+          <div class="counter-title">Total Mensajes Enviados</div>
+          <div class="counter-value" id="totalMessages">-</div>
+        </div>
+        <div class="counter-box">
+          <div class="counter-title">Usuarios Activos Hoy</div>
+          <div class="counter-value" id="usersToday">-</div>
+        </div>
+        <div class="counter-box">
+          <div class="counter-title">Registros Hoy</div>
+          <div class="counter-value" id="registrationsToday">-</div>
+        </div>
+        <div class="counter-box">
+          <div class="counter-title">Eliminaciones Hoy</div>
+          <div class="counter-value" id="deletionsToday">-</div>
+        </div>
+        </div>
+        
+        <!-- Gráficas -->
+        <div class="columns is-multiline">
+          <div class="column is-half chart-container">
+            <h2 class="subtitle is-5">Mensajes procesados (últimos 7 días)</h2>
+            <canvas id="messagesChart"></canvas>
+          </div>
+          <div class="column is-half chart-container">
+            <h2 class="subtitle is-5">Usuarios activos (últimos 7 días)</h2>
+            <canvas id="usersChart"></canvas>
+          </div>
+          <div class="column is-full chart-container">
+            <h2 class="subtitle is-5">Registros y Eliminaciones (últimos 7 días)</h2>
+            <canvas id="registrationsChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div id="chiloBotDashboard" style="display: none; margin-top: 2rem;">
+    <h1>Chilo Bot Dashboard</h1>
+    <img id="qrCode" src="/qr" alt="QR Code" />
+    <div>
+      <button id="restartBtn">Clear and Start New Login</button>
+    </div>
+    <div id="status"></div>
+
+    <div id="uploadSection">
+      <h2>Upload Relationships File</h2>
+      <input type="file" id="fileInput" accept=".xlsx" />
+      <button id="uploadBtn">Upload</button>
+      <div id="uploadStatus"></div>
+    </div>
+
+    <div id="updateUrlSection" style="margin-top: 2rem; border-top: 1px solid #ccc; padding-top: 1rem;">
+      <h2>Update Student Information Link</h2>
+      <input type="text" id="urlInput" placeholder="Enter new Excel URL" style="width: 60%; padding: 0.5rem; font-size: 1rem;" />
+      <button id="updateUrlBtn">Update URL</button>
+      <div id="updateUrlStatus" style="margin-top: 1rem; font-weight: bold;"></div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <script>
+    // Wrap all variables and event listeners inside an IIFE to avoid redeclaration errors
+    (function() {
+      // Login logic
+      const loginBtn = document.getElementById('loginBtn');
+      const loginMessage = document.getElementById('loginMessage');
+      const loginContainer = document.getElementById('loginContainer');
+      const dashboardSelector = document.getElementById('dashboardSelector');
+      const adminPanelDashboard = document.getElementById('adminPanelDashboard');
+      const chiloBotDashboard = document.getElementById('chiloBotDashboard');
+
+      loginBtn.addEventListener('click', () => {
+        const username = document.getElementById('username').value.trim();
+        const password = document.getElementById('password').value;
+
+        if (username === 'Admin' && password === 'JoseCecilio') {
+          loginMessage.style.color = 'green';
+          loginMessage.textContent = 'Welcome, Admin!';
+          loginContainer.style.display = 'none';
+          dashboardSelector.style.display = 'block';
+          adminPanelDashboard.style.display = 'block';
+          chiloBotDashboard.style.display = 'none';
+          loadCounters();
+          loadCharts();
+        } else {
+          loginMessage.style.color = 'red';
+          loginMessage.textContent = 'Incorrect username or password.';
+        }
+      });
+
+      // Dashboard selector buttons
+      const btnAdminPanel = document.getElementById('btnAdminPanel');
+      const btnChiloDashboard = document.getElementById('btnChiloDashboard');
+
+      btnAdminPanel.addEventListener('click', () => {
+        adminPanelDashboard.style.display = 'block';
+        chiloBotDashboard.style.display = 'none';
+        loadCounters();
+        loadCharts();
+      });
+
+      btnChiloDashboard.addEventListener('click', () => {
+        adminPanelDashboard.style.display = 'none';
+        chiloBotDashboard.style.display = 'block';
+      });
+
+      const btnUserStudentPanel = document.getElementById('btnUserStudentPanel');
+      btnUserStudentPanel.addEventListener('click', (event) => {
+        event.preventDefault();
+        window.location.href = '/panel.html';
+      });
+
+      // Admin Panel Dashboard scripts
+      function getTodayDateStr() {
+        const today = new Date();
+        return today.toISOString().slice(0,10);
+      }
+      function getLastNDaysLabels(n) {
+        const arr = [];
+        for(let i=n-1;i>=0;i--) {
+          const d = new Date();
+          d.setDate(d.getDate()-i);
+          arr.push(d.toISOString().slice(0,10));
+        }
+        return arr;
+      }
+
+    async function loadCounters() {
+      try {
+        const messagesRes = await fetch('/admin/stats/messages?period=day');
+        const messagesData = await messagesRes.json();
+        const today = getTodayDateStr();
+        document.getElementById('messagesToday').innerText = messagesData[today] || 0;
+
+        const totalMessagesRes = await fetch('/admin/stats/messages/total');
+        const totalMessagesData = await totalMessagesRes.json();
+        document.getElementById('totalMessages').innerText = totalMessagesData.total || 0;
+
+        const usersRes = await fetch('/admin/stats/users?period=day');
+        const usersData = await usersRes.json();
+        document.getElementById('usersToday').innerText = usersData[today] || 0;
+
+        const regRes = await fetch('/admin/stats/registrations?period=day');
+        const regData = await regRes.json();
+        document.getElementById('registrationsToday').innerText = regData.registrations[today] || 0;
+        document.getElementById('deletionsToday').innerText = regData.deletions[today] || 0;
+      } catch (error) {
+        console.error('Error loading counters:', error);
+      }
+    }
+
+      async function loadCharts() {
+        try {
+          const last7 = getLastNDaysLabels(7);
+
+          const messagesRes = await fetch('/admin/stats/messages?period=day');
+          const messagesData = await messagesRes.json();
+          const messagesCounts = last7.map(d => messagesData[d] || 0);
+          new Chart(document.getElementById('messagesChart'), {
+            type: 'bar',
+            data: {
+              labels: last7,
+              datasets: [{
+                label: 'Mensajes',
+                data: messagesCounts,
+                backgroundColor: '#3273dc'
+              }]
+            },
+            options: { responsive: true, plugins: { legend: { display: false } } }
+          });
+
+          const usersRes = await fetch('/admin/stats/users?period=day');
+          const usersData = await usersRes.json();
+          const usersCounts = last7.map(d => usersData[d] || 0);
+          new Chart(document.getElementById('usersChart'), {
+            type: 'line',
+            data: {
+              labels: last7,
+              datasets: [{
+                label: 'Usuarios activos',
+                data: usersCounts,
+                fill: false,
+                borderColor: '#209cee',
+                backgroundColor: '#209cee',
+                tension: 0.2
+              }]
+            },
+            options: { responsive: true, plugins: { legend: { display: false } } }
+          });
+
+          const regRes = await fetch('/admin/stats/registrations?period=day');
+          const regData = await regRes.json();
+          const regCounts = last7.map(d => regData.registrations[d] || 0);
+          const delCounts = last7.map(d => regData.deletions[d] || 0);
+          new Chart(document.getElementById('registrationsChart'), {
+            type: 'bar',
+            data: {
+              labels: last7,
+              datasets: [
+                {
+                  label: 'Registros',
+                  data: regCounts,
+                  backgroundColor: '#23d160'
+                },
+                {
+                  label: 'Eliminaciones',
+                  data: delCounts,
+                  backgroundColor: '#ff3860'
+                }
+              ]
+            },
+            options: { responsive: true, plugins: { legend: { position: 'top' } } }
+          });
+        } catch (error) {
+          console.error('Error loading charts:', error);
+        }
+      }
+
+      // Chilo Bot Dashboard scripts
+      const restartBtn = document.getElementById('restartBtn');
+      const qrCodeImg = document.getElementById('qrCode');
+      const statusDiv = document.getElementById('status');
+
+      restartBtn.addEventListener('click', () => {
+        const confirmed = confirm('¿Seguro que quiere borrar el login?');
+        if (!confirmed) {
+          return;
+        }
+        restartBtn.disabled = true;
+        statusDiv.textContent = 'Restarting bot, please wait...';
+
+        fetch('/restart', { method: 'POST' })
+          .then(response => {
+            if (!response.ok) {
+              throw new Error('Failed to restart bot');
+            }
+            return response.text();
+          })
+          .then(message => {
+            statusDiv.textContent = message;
+
+            // Wait 5 seconds before refreshing QR code image to allow file creation
+            setTimeout(() => {
+              qrCodeImg.src = '/qr?t=' + new Date().getTime();
+            }, 5000);
+          })
+          .catch(error => {
+            statusDiv.textContent = error.message;
+          })
+          .finally(() => {
+            restartBtn.disabled = false;
+          });
+      });
+
+      // Optionally refresh QR code every 30 seconds
+      setInterval(() => {
+        qrCodeImg.src = '/qr?t=' + new Date().getTime();
+      }, 30000);
+
+      // Upload relationships file logic
+      const fileInput = document.getElementById('fileInput');
+      const uploadBtn = document.getElementById('uploadBtn');
+      const uploadStatus = document.getElementById('uploadStatus');
+
+      uploadBtn.addEventListener('click', () => {
+        uploadStatus.textContent = '';
+        const file = fileInput.files[0];
+        if (!file) {
+          uploadStatus.textContent = 'Please select a file to upload.';
+          uploadStatus.style.color = 'red';
+          return;
+        }
+        if (!file.name.endsWith('.xlsx')) {
+          uploadStatus.textContent = 'Only .xlsx files are allowed.';
+          uploadStatus.style.color = 'red';
+          return;
+        }
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        uploadBtn.disabled = true;
+        uploadStatus.textContent = 'Uploading...';
+        uploadStatus.style.color = 'black';
+
+        fetch('/upload-relaciones', {
+          method: 'POST',
+          body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            uploadStatus.textContent = data.message;
+            uploadStatus.style.color = 'green';
+            fileInput.value = '';
+          } else {
+            uploadStatus.textContent = data.message || 'Upload failed.';
+            uploadStatus.style.color = 'red';
+          }
+        })
+        .catch(() => {
+          uploadStatus.textContent = 'Upload failed due to network error.';
+          uploadStatus.style.color = 'red';
+        })
+        .finally(() => {
+          uploadBtn.disabled = false;
+        });
+      });
+
+      // Update Excel URL logic
+      const urlInput = document.getElementById('urlInput');
+      const updateUrlBtn = document.getElementById('updateUrlBtn');
+      const updateUrlStatus = document.getElementById('updateUrlStatus');
+
+      updateUrlBtn.addEventListener('click', () => {
+        updateUrlStatus.textContent = '';
+        const newUrl = urlInput.value.trim();
+        if (!newUrl) {
+          updateUrlStatus.textContent = 'Please enter a valid URL.';
+          updateUrlStatus.style.color = 'red';
+          return;
+        }
+
+        updateUrlBtn.disabled = true;
+        updateUrlStatus.textContent = 'Updating URL...';
+        updateUrlStatus.style.color = 'black';
+
+        fetch('/update-excel-url', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ newUrl })
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            updateUrlStatus.textContent = data.message;
+            updateUrlStatus.style.color = 'green';
+            urlInput.value = '';
+          } else {
+            updateUrlStatus.textContent = data.message || 'Update failed.';
+            updateUrlStatus.style.color = 'red';
+          }
+        })
+        .catch(() => {
+          updateUrlStatus.textContent = 'Update failed due to network error.';
+          updateUrlStatus.style.color = 'red';
+        })
+        .finally(() => {
+          updateUrlBtn.disabled = false;
+        });
+      });
+    })();
+  </script>
+</body>
+</html>
+
+  </div>
+
+  <script>
+    // Login logic
+    const loginBtn = document.getElementById('loginBtn');
+    const loginMessage = document.getElementById('loginMessage');
+    const loginContainer = document.getElementById('loginContainer');
+    const dashboardContent = document.getElementById('dashboardContent');
+
+    loginBtn.addEventListener('click', () => {
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value;
+
+      if (username === 'Admin' && password === 'JoseCecilio') {
+        loginMessage.style.color = 'green';
+        loginMessage.textContent = 'Welcome, Admin!';
+        loginContainer.style.display = 'none';
+        dashboardContent.style.display = 'block';
+      } else {
+        loginMessage.style.color = 'red';
+        loginMessage.textContent = 'Incorrect username or password.';
+      }
+    });
+
+    // Existing dashboard scripts below
+    const restartBtn = document.getElementById('restartBtn');
+    const qrCodeImg = document.getElementById('qrCode');
+    const statusDiv = document.getElementById('status');
+
+    restartBtn.addEventListener('click', () => {
+      const confirmed = confirm('¿Seguro que quiere borrar el login?');
+      if (!confirmed) {
+        return;
+      }
+      restartBtn.disabled = true;
+      statusDiv.textContent = 'Restarting bot, please wait...';
+
+      fetch('/restart', { method: 'POST' })
+        .then(response => {
+          if (!response.ok) {
+            throw new Error('Failed to restart bot');
+          }
+          return response.text();
+        })
+        .then(message => {
+          statusDiv.textContent = message;
+
+          // Wait 5 seconds before refreshing QR code image to allow file creation
+          setTimeout(() => {
+            qrCodeImg.src = '/qr?t=' + new Date().getTime();
+          }, 5000);
+        })
+        .catch(error => {
+          statusDiv.textContent = error.message;
+        })
+        .finally(() => {
+          restartBtn.disabled = false;
+        });
+    });
+
+    // Optionally refresh QR code every 30 seconds
+    setInterval(() => {
+      qrCodeImg.src = '/qr?t=' + new Date().getTime();
+    }, 30000);
+
+    // Upload relationships file logic
+    const fileInput = document.getElementById('fileInput');
+    const uploadBtn = document.getElementById('uploadBtn');
+    const uploadStatus = document.getElementById('uploadStatus');
+
+    uploadBtn.addEventListener('click', () => {
+      uploadStatus.textContent = '';
+      const file = fileInput.files[0];
+      if (!file) {
+        uploadStatus.textContent = 'Please select a file to upload.';
+        uploadStatus.style.color = 'red';
+        return;
+      }
+      if (!file.name.endsWith('.xlsx')) {
+        uploadStatus.textContent = 'Only .xlsx files are allowed.';
+        uploadStatus.style.color = 'red';
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      uploadBtn.disabled = true;
+      uploadStatus.textContent = 'Uploading...';
+      uploadStatus.style.color = 'black';
+
+      fetch('/upload-relaciones', {
+        method: 'POST',
+        body: formData
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          uploadStatus.textContent = data.message;
+          uploadStatus.style.color = 'green';
+          fileInput.value = '';
+        } else {
+          uploadStatus.textContent = data.message || 'Upload failed.';
+          uploadStatus.style.color = 'red';
+        }
+      })
+      .catch(() => {
+        uploadStatus.textContent = 'Upload failed due to network error.';
+        uploadStatus.style.color = 'red';
+      })
+      .finally(() => {
+        uploadBtn.disabled = false;
+      });
+    });
+
+    // Update Excel URL logic
+    const urlInput = document.getElementById('urlInput');
+    const updateUrlBtn = document.getElementById('updateUrlBtn');
+    const updateUrlStatus = document.getElementById('updateUrlStatus');
+
+    updateUrlBtn.addEventListener('click', () => {
+      updateUrlStatus.textContent = '';
+      const newUrl = urlInput.value.trim();
+      if (!newUrl) {
+        updateUrlStatus.textContent = 'Please enter a valid URL.';
+        updateUrlStatus.style.color = 'red';
+        return;
+      }
+
+      updateUrlBtn.disabled = true;
+      updateUrlStatus.textContent = 'Updating URL...';
+      updateUrlStatus.style.color = 'black';
+
+      fetch('/update-excel-url', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ newUrl })
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          updateUrlStatus.textContent = data.message;
+          updateUrlStatus.style.color = 'green';
+          urlInput.value = '';
+        } else {
+          updateUrlStatus.textContent = data.message || 'Update failed.';
+          updateUrlStatus.style.color = 'red';
+        }
+      })
+      .catch(() => {
+        updateUrlStatus.textContent = 'Update failed due to network error.';
+        updateUrlStatus.style.color = 'red';
+      })
+      .finally(() => {
+        updateUrlBtn.disabled = false;
+      });
+    });
+  </script>
+</body>
+</html>
