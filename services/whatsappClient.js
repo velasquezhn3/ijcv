@@ -21,7 +21,19 @@ async function initClient(options = {}) {
 
   client = new Client({
     authStrategy: new LocalAuth({ clientId: options.clientId || 'session' }),
-    puppeteer: options.puppeteer || { headless: true }
+    puppeteer: options.puppeteer || {
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--no-first-run',
+        '--no-zygote',
+        '--single-process',
+        '--disable-gpu'
+      ]
+    }
   });
 
   client.on('qr', (qr) => {
@@ -111,3 +123,4 @@ module.exports = {
   downloadMedia,
   logout
 };
+
