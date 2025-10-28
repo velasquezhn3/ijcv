@@ -10,7 +10,7 @@ const ExcelJS = require('exceljs');
 const fs = require('fs');
 const path = require('path');
 
-let EXCEL_URL = 'https://www.dropbox.com/scl/fi/ib25r1mh25ybbfrh15e6e/CUENTAS-A-O-2025-IJCV.xlsx?rlkey=l0a61b5yg8c8mf50mfmaf9xak&st=heqb9ldm&dl=1';
+let EXCEL_URL = 'https://www.dropbox.com/scl/fi/51gji6ze88ibcbap8emll/CUENTAS-A-O-2025-IJCV.xlsx?rlkey=54byhigncg1tnsoechaeiwiiw&st=heqb9ldm&dl=1';
 const CACHE_REFRESH_INTERVAL = 60 * 60 * 1000; // 60 minutos
 const MAX_RETRIES = 3;
 

@@ -29,6 +29,137 @@ const { isAdmin } = require('../services/adminService');
 
 const { appendLog } = require('../utils/logger');
 
+// Configuración de grados con sus imágenes correspondientes
+const GRADOS_CONFIG = {
+  '1': { nombre: 'Pre-Escolar (Bilingüe)', imagen: 'img1.jpeg' },
+  '2': { nombre: '1st - 3rd Grade (Bilingüe)', imagen: 'img2.jpeg' },
+  '3': { nombre: '4th - 6th Grade (Bilingüe)', imagen: 'img3.jpeg' },
+  '4': { nombre: '7th Grade (Bilingüe)', imagen: 'img4.jpeg' },
+  '5': { nombre: '8th - 9th Grade (Bilingüe)', imagen: 'img5.jpeg' },
+  '6': { nombre: '10th - 11th Grade (Bilingüe)', imagen: 'img6.jpeg' },
+  '7': { nombre: '7mo Grado (Español)', imagen: 'img7.jpeg' },
+  '8': { nombre: '8vo - 9no Grado (Español)', imagen: 'img8.jpeg' },
+  '9': { nombre: '10mo - 11vo Grado (Español)', imagen: 'img9.jpeg' }
+};
+
+// Función auxiliar para delay
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+// Función para leer imágenes de forma segura
+async function leerImagen(nombreArchivo) {
+  try {
+    const imagePath = path.join(__dirname, '..', nombreArchivo);
+    console.log(`Leyendo imagen: ${imagePath}`);
+    return await fs.promises.readFile(imagePath);
+  } catch (error) {
+    console.error(`Error leyendo imagen ${nombreArchivo}:`, error);
+    throw error;
+  }
+}
+
+// Función para enviar el menú de grados
+async function enviarMenuGrados(bot, remitente) {
+  const menuText = `📚 *¿En qué grado estás interesado?*
+
+Por favor selecciona una opción:
+
+*Programa Bilingüe:*
+1️⃣ Pre-Escolar (Pre-Kínder y Kínder)
+2️⃣ 1st - 3rd Grade
+3️⃣ 4th - 6th Grade
+4️⃣ 7th Grade
+5️⃣ 8th - 9th Grade
+6️⃣ 10th - 11th Grade (Bachillerato)
+
+*Programa Español:*
+7️⃣ 7mo Grado
+8️⃣ 8vo - 9no Grado
+9️⃣ 10mo - 11vo Grado (Bachillerato)
+
+📝 *Escribe el número de tu opción (1-9)*`;
+
+  await bot.sendMessage(remitente, { text: menuText });
+
+  // Actualizar estado del usuario
+  establecerEstado(remitente, 'esperando_grado');
+}
+
+// Función para enviar PDF de transporte
+async function enviarPDFTransporte(bot, remitente) {
+  try {
+    const pdfPath = path.join(__dirname, '..', 'transporte.pdf');
+    const pdfBuffer = await fs.promises.readFile(pdfPath);
+    await bot.sendMessage(remitente, {
+      document: pdfBuffer,
+      mimetype: 'application/pdf',
+      fileName: 'transporte.pdf',
+      caption: '📄 Información sobre transporte escolar.'
+    });
+  } catch (error) {
+    console.error('Error enviando PDF de transporte:', error);
+    await bot.sendMessage(remitente, {
+      text: "❌ Lo siento, hubo un error al cargar el PDF de transporte. Por favor contacta directamente al 9503-1205 para recibir asistencia inmediata."
+    });
+  }
+}
+
+// Función para enviar información de un grado específico
+async function enviarInformacionGrado(bot, remitente, opcionGrado) {
+  try {
+    const grado = GRADOS_CONFIG[opcionGrado];
+
+    if (!grado) {
+      await bot.sendMessage(remitente, {
+        text: "❌ Opción no válida. Por favor selecciona un número del 1 al 9."
+      });
+      return false;
+    }
+
+    // Enviar mensaje de confirmación
+    await bot.sendMessage(remitente, {
+      text: `✅ Perfecto, te envío la información de *${grado.nombre}*...\n\n⏳ Un momento por favor...`
+    });
+
+    await delay(1000);
+
+    // Enviar imagen del grado seleccionado
+    const imagenGrado = await leerImagen(grado.imagen);
+    await bot.sendMessage(remitente, {
+      image: imagenGrado,
+      mimetype: 'image/jpeg',
+      caption: `📊 *Información de ${grado.nombre}*\n\nPrecios y detalles del programa educativo.`
+    });
+
+    await delay(1500);
+
+    // Enviar imagen de requisitos (img10)
+    const imagenRequisitos = await leerImagen('img10.jpeg');
+    await bot.sendMessage(remitente, {
+      image: imagenRequisitos,
+      mimetype: 'image/jpeg',
+      caption: `📋 *Requisitos de Inscripción*\n\nDocumentación necesaria para matricularse.`
+    });
+
+    await delay(1000);
+
+    // Preguntar si desea ver más grados o información de transporte
+    await bot.sendMessage(remitente, {
+      text: `✅ *Información enviada correctamente*\n\n¿Deseas consultar información de otro grado?\n\n1️⃣ Sí, ver otros grados\n2️⃣ Volver al menú principal\n3️⃣ Información sobre transporte\n\n📝 *Escribe 1, 2 o 3*`
+    });
+
+    // Actualizar estado
+    establecerEstado(remitente, 'consulta_adicional');
+    return true;
+
+  } catch (error) {
+    console.error('Error enviando información del grado:', error);
+    await bot.sendMessage(remitente, {
+      text: "❌ Lo siento, hubo un error al cargar las imágenes. Por favor contacta directamente al 9503-1205 para recibir asistencia inmediata."
+    });
+    return false;
+  }
+}
+
 /**
  * Envía el menú principal al usuario.
  * @param {Object} bot - Instancia del bot.
@@ -59,8 +190,6 @@ async function enviarBroadcast(bot, mensaje) {
     console.error('Error al leer encargados.json:', error);
     return 0;
   }
-
-  const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
   const destinatarios = Object.keys(encargadosDB.encargados);
   console.log(`Broadcast recipients: ${destinatarios.join(', ')}`);
@@ -163,18 +292,19 @@ async function enviarMenuPrincipal(bot, remitente) {
   }
 
   mensaje += `Seleccione una opción:\n\n`;
-  mensaje += `1️⃣ *Registrar* nuevo alumno\n`;
-  mensaje += `2️⃣ *Consultar* estado de pagos\n`;
-  mensaje += `3️⃣ *Información* de la escuela\n`;
-  mensaje += `4️⃣ *Contactar* administración\n`;
+  mensaje += `1️⃣ *Información* de matrícula\n`;
+  mensaje += `2️⃣ *Registrar* nuevo alumno\n`;
+  mensaje += `3️⃣ *Consultar* estado de pagos\n`;
+  mensaje += `4️⃣ *Información* de la escuela\n`;
+  mensaje += `5️⃣ *Contactar* administración\n`;
 
   if (alumnos.length > 0) {
-    mensaje += `5️⃣ *Eliminar* alumno de mi cuenta\n`;
+    mensaje += `6️⃣ *Eliminar* alumno de mi cuenta\n`;
   }
 
   // Add admin-only menu option
   if (isAdmin(remitente)) {
-    mensaje += `6️⃣ *Broadcast Admin*\n`;
+    mensaje += `7️⃣ *Broadcast Admin*\n`;
   }
 
   mensaje += `\nResponda con el número de la opción deseada.`;
@@ -226,17 +356,55 @@ async function enviarEstadoPagos(bot, remitente, estudiante) {
     ? '\n\n✅ *AL DÍA EN PAGOS*'
     : `\n\n❌ *DEUDA MENSUALIDAD: L.${deuda.deudaMensualidad}*\n❌ *DEUDA MORA: L.${deuda.deudaMora}*\n❌ *DEUDA TOTAL: L.${deuda.totalDeuda}*`;
 
+  await bot.sendMessage(remitente, { text: respuesta });
+}
 
-  if (estudiante.totalPagar < 10) {
-    respuesta += `\n\n[DEBUG] Valor original: ${JSON.stringify(estudiante.valorCeldaOriginal)}`;
+/**
+ * Envía la información académica completa al usuario.
+ * @param {Object} bot - Instancia del bot.
+ * @param {string} remitente - Número del usuario.
+ * @param {Object} estudiante - Información del estudiante.
+ */
+async function enviarInformacionAcademicaCompleta(bot, remitente, estudiante) {
+  if (!estudiante || !estudiante.nombre) {
+    await bot.sendMessage(remitente, {
+      text: '❌ No se encontró información del alumno. Por favor contacte a administración.'
+    });
+    return;
   }
+
+  let respuesta = `📚 *INFORMACIÓN ACADÉMICA COMPLETA - ${estudiante.nombre.toUpperCase()}*\n`;
+  respuesta += `🏫 Grado: ${estudiante.grado}\n\n`;
+
+  // Assuming estudiante has academic fields like subjects, grades, etc.
+  // If estudiante.materias exists, list them
+  if (estudiante.materias && Object.keys(estudiante.materias).length > 0) {
+    respuesta += `📖 *Materias y Calificaciones:*\n`;
+    for (const [materia, calificacion] of Object.entries(estudiante.materias)) {
+      respuesta += `▫️ ${materia}: ${calificacion}\n`;
+    }
+    respuesta += `\n`;
+  }
+
+  // Add other academic info if available
+  if (estudiante.promedio) {
+    respuesta += `📊 Promedio General: ${estudiante.promedio}\n`;
+  }
+
+  if (estudiante.conducta) {
+    respuesta += `🤝 Conducta: ${estudiante.conducta}\n`;
+  }
+
+  if (estudiante.asistencia) {
+    respuesta += `📅 Asistencia: ${estudiante.asistencia}%\n`;
+  }
+
+  respuesta += `\nPara más detalles, contacte a la administración.`;
 
   await bot.sendMessage(remitente, { text: respuesta });
 }
 
-async function delay(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
+
 
 async function enviarMensajeConDelay(bot, remitente, mensaje) {
   const delayMs = Math.floor(Math.random() * 15000) + 5000; // 5 to 20 seconds
@@ -334,39 +502,121 @@ async function procesarMensaje(bot, remitente, mensaje, mensajeObj) {
     case 'MENU_PRINCIPAL':
       switch (mensaje) {
         case '1':
+          try {
+            // Primer mensaje - Información institucional y modalidades
+            await bot.sendMessage(remitente, {
+              text: `🏫 *C.E.N.G. "JOSÉ CECILIO DEL VALLE"*
+*¡43 años formando líderes!*
+
+🌟 *Ventajas de nuestra institución:*
+• 100% Bilingüe
+• 43 años de experiencia educativa
+• Docentes calificados y certificados
+• Instalaciones modernas y completas
+
+📚 *Modalidades Educativas:*
+
+*🔹 Programa Bilingüe:*
+   • *Pre-Escolar:*
+     - Pre-Kínder (4 años cumplidos hasta Abril 2025)
+     - Kínder (5 años cumplidos hasta Abril 2025)
+   • *Educación Básica:* 1° a 9° Grado
+   • *Educación Media:* 10° y 11° - Bachillerato en Ciencias y Humanidades
+
+*🔹 Programa Español:*
+   • 7° a 9° Grado
+   • 10° a 11° - Bachillerato en Ciencias y Humanidades
+
+📅 *Ciclo Escolar 2025:*
+   Período: Febrero a Noviembre
+
+📍 *Ubicación:*
+   Comayagüela, M.D.C.
+
+⏰ *Jornada Diaria:*
+   7:05 AM - 1:20 PM`
+            });
+
+            // Pausa para mejor experiencia de lectura
+            await delay(2000);
+
+            // Segundo mensaje - Instalaciones, actividades y matrícula
+            await bot.sendMessage(remitente, {
+              text: `🏢 *Infraestructura y Servicios:*
+
+🔬 *Laboratorios:*
+   • Ciencias Naturales
+   • Tecnología
+   • Computación
+
+🎯 *Áreas Especializadas:*
+   • Departamento de Psicología
+   • Departamento de Consejería
+   • Biblioteca escolar
+   • Cafetería
+   • Tienda escolar
+   • Área recreativa
+
+⚽ *Actividades Extracurriculares:*
+   • Fútbol
+   • Baloncesto
+   • Voleibol
+   • Banda Marcial
+   • Ajedrez
+
+🏟️ *Espacios Deportivos:*
+   • Canchas múltiples
+
+📋 *Proceso de Matrícula 2025:*
+🗓️ *Fechas:* 17 de Noviembre - 12 de Diciembre 2025
+
+⏰ *Horario de atención:*
+   Lunes a Viernes: 8:00 AM - 2:00 PM
+   Sábados: 8:00 AM - 12:00 PM
+
+📞 *Contacto y Información:*
+   Teléfonos: 2226-8440 / 2226-8447 / 2226-5696
+   WhatsApp: 9503-1205
+   *Horario de llamadas:* 8:00 AM - 2:00 PM
+
+💡 *Recordatorio importante:*
+• El transporte escolar NO está incluido
+• Seguro escolar vigente a partir del 10 de febrero
+• Promoción especial de matrícula del 17 de noviembre al 31 de diciembre`
+            });
+
+            // Enviar menú de grados para selección interactiva
+            await delay(1000);
+            await enviarMenuGrados(bot, remitente);
+
+          } catch (error) {
+            console.error('Error enviando información de matrícula:', error);
+            await bot.sendMessage(remitente, {
+              text: "❌ Lo siento, hubo un error al cargar la información. Por favor contacta directamente al 9503-1205 para recibir asistencia inmediata."
+            });
+          }
+          break;
+
+        case '2':
           establecerEstado(remitente, 'REGISTRO_ID');
           await enviarMensajeConDelay(bot, remitente, {
             text: '📝 *REGISTRO DE ALUMNO*\n\nPor favor, ingrese el número de identidad del alumno (13 dígitos):'
           });
           break;
 
-        case '6':
-          if (isAdmin(remitente)) {
-            establecerEstado(remitente, 'MENU_ADMIN_BROADCAST');
-            await enviarMensajeConDelay(bot, remitente, {
-              text: '📢 *MENÚ BROADCAST ADMIN*\n\nPor favor, envíe cualquier mensaje (texto, foto, video, etc.) para enviarlo a todos los encargados.\nEscriba *menú* para volver al menú principal.'
-            });
-          } else {
-            await enviarMensajeConDelay(bot, remitente, {
-              text: '❌ Opción no válida.'
-            });
-            await enviarMenuPrincipal(bot, remitente);
-          }
-          break;
-
-        case '2':
+        case '3':
           if (alumnos.length === 0) {
             await enviarMensajeConDelay(bot, remitente, {
-              text: '❌ No tiene alumnos registrados. Seleccione la opción 1️⃣ para registrar un alumno.'
+              text: '❌ No tiene alumnos registrados. Seleccione la opción 2️⃣ para registrar un alumno.'
             });
             await enviarMenuPrincipal(bot, remitente);
           } else if (alumnos.length === 1) {
             const estudiante = await buscarEstudiante(alumnos[0]);
-if (estudiante) {
-  await enviarEstadoPagos(bot, remitente, estudiante);
-  await delay(15000);
-  await enviarMenuPrincipal(bot, remitente);
-} else {
+            if (estudiante) {
+              await enviarEstadoPagos(bot, remitente, estudiante);
+              await delay(15000);
+              await enviarMenuPrincipal(bot, remitente);
+            } else {
               await enviarMensajeConDelay(bot, remitente, {
                 text: '❌ No se encontró información del alumno registrado. Por favor contacte a administración.'
               });
@@ -390,7 +640,7 @@ if (estudiante) {
           }
           break;
 
-        case '3':
+        case '4':
           let infoMensaje = `📚 *INFORMACIÓN DE LA ESCUELA*\n\n`;
           infoMensaje += `*${infoEscuela.nombre}*\n\n`;
           infoMensaje += `📍 *Dirección:* ${infoEscuela.direccion}\n`;
@@ -406,7 +656,7 @@ if (estudiante) {
           await enviarMensajeConDelay(bot, remitente, { text: infoMensaje });
           break;
 
-        case '4':
+        case '5':
           let contactoMensaje = `📞 *CONTACTAR ADMINISTRACIÓN*\n\n`;
           contactoMensaje += `Para consultas administrativas puede comunicarse al:\n`;
           contactoMensaje += `📱 *WhatsApp:* ${infoEscuela.telefono}\n`;
@@ -419,7 +669,7 @@ if (estudiante) {
           await enviarMensajeConDelay(bot, remitente, { text: contactoMensaje });
           break;
 
-        case '5':
+        case '6':
           if (alumnos.length === 0) {
             await enviarMensajeConDelay(bot, remitente, {
               text: '❌ No tiene alumnos registrados para eliminar.'
@@ -440,6 +690,20 @@ if (estudiante) {
             mensajeEliminar += '\nResponda con el número del alumno que desea eliminar de su cuenta.';
             establecerEstado(remitente, 'ELIMINAR_ALUMNO', { alumnos });
             await enviarMensajeConDelay(bot, remitente, { text: mensajeEliminar });
+          }
+          break;
+
+        case '7':
+          if (isAdmin(remitente)) {
+            establecerEstado(remitente, 'MENU_ADMIN_BROADCAST');
+            await enviarMensajeConDelay(bot, remitente, {
+              text: '📢 *MENÚ BROADCAST ADMIN*\n\nPor favor, envíe cualquier mensaje (texto, foto, video, etc.) para enviarlo a todos los encargados.\nEscriba *menú* para volver al menú principal.'
+            });
+          } else {
+            await enviarMensajeConDelay(bot, remitente, {
+              text: '❌ Opción no válida.'
+            });
+            await enviarMenuPrincipal(bot, remitente);
           }
           break;
 
@@ -555,6 +819,63 @@ if (estudiante) {
       }
 
         setTimeout(() => enviarMenuPrincipal(bot, remitente), 1500);
+      }
+      break;
+
+    case 'CONSULTA_ACADEMICA_ID':
+      if (/^\d{13}$/.test(mensaje)) {
+        const estudiante = await buscarEstudiante(mensaje);
+        if (estudiante) {
+          await enviarInformacionAcademicaCompleta(bot, remitente, estudiante);
+          setTimeout(() => enviarMenuPrincipal(bot, remitente), 1500);
+        } else {
+          await enviarMensajeConDelay(bot, remitente, {
+            text: '❌ El número de identidad no está registrado en el sistema. Verifique e intente nuevamente o escriba *menú* para volver al menú principal.'
+          });
+        }
+      } else {
+        await enviarMensajeConDelay(bot, remitente, {
+          text: '❌ Formato incorrecto. El número de identidad debe tener 13 dígitos numéricos.\n\nIntente nuevamente o escriba *menú* para volver al menú principal.'
+        });
+      }
+      break;
+
+    case 'esperando_grado':
+      const opcionGrado = mensaje.trim();
+      if (/^[1-9]$/.test(opcionGrado)) {
+        const exito = await enviarInformacionGrado(bot, remitente, opcionGrado);
+        if (!exito) {
+          // Si falló, volver a mostrar el menú de grados
+          await enviarMenuGrados(bot, remitente);
+        }
+      } else {
+        await bot.sendMessage(remitente, {
+          text: "❌ Opción no válida. Por favor selecciona un número del 1 al 9."
+        });
+        await enviarMenuGrados(bot, remitente);
+      }
+      break;
+
+    case 'consulta_adicional':
+      if (mensaje === '1') {
+        // Ver otros grados
+        await enviarMenuGrados(bot, remitente);
+      } else if (mensaje === '2') {
+        // Volver al menú principal
+        await enviarMenuPrincipal(bot, remitente);
+      } else if (mensaje === '3') {
+        // Enviar información sobre transporte
+        await enviarPDFTransporte(bot, remitente);
+        await delay(1000);
+        await enviarMenuPrincipal(bot, remitente);
+      } else {
+        await bot.sendMessage(remitente, {
+          text: "❌ Opción no válida. Por favor escribe 1, 2 o 3."
+        });
+        // Re-enviar la pregunta
+        await bot.sendMessage(remitente, {
+          text: `✅ *Información enviada correctamente*\n\n¿Deseas consultar información de otro grado?\n\n1️⃣ Sí, ver otros grados\n2️⃣ Volver al menú principal\n3️⃣ Información sobre transporte\n\n📝 *Escribe 1, 2 o 3*`
+        });
       }
       break;
 
